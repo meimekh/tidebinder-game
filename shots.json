@@ -1,5 +1,6 @@
 [
-  { "name": "1-start.jpg", "query": "?shot=start&seed=1" },
-  { "name": "2-play.jpg", "query": "?shot=play&seed=1" },
-  { "name": "3-end.jpg", "query": "?shot=end&seed=1" }
+  { "name": "1-play.jpg", "scene": "play", "query": "?shot=play&seed=1", "shows": "live tow: crates on the rope, ring ahead, storm beam and wreck in the water" },
+  { "name": "2-title.jpg", "scene": "start", "query": "?shot=start&seed=1", "shows": "title card: goal, four rules, every key" },
+  { "name": "3-win.jpg", "scene": "end", "query": "?shot=end&seed=1", "shows": "results screen of a run that was really won" },
+  { "name": "4-storm.jpg", "scene": "storm", "query": "?shot=storm&seed=1", "shows": "the last wave: full gale, three crates in tow, the ring at hand" }
 ]

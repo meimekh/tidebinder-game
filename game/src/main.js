@@ -8,7 +8,7 @@ import { createWorld } from './simulation.js';
 import { createRenderer } from './render.js';
 import { createInput } from './input.js';
 import { createAudio } from './audio.js';
-import { drawHud, drawScreen } from './hud.js';
+import { drawHints, drawHud, drawScreen } from './hud.js';
 import { SHOTS, pilotIntent, stageShot } from './shots.js';
 
 const params = new URLSearchParams(window.location.search);
@@ -56,6 +56,7 @@ let previousNow = performance.now() / 1000;
 let statusTimer = 0;
 let painted = false;
 let lastEvents = [];
+let stageReport = null; // what the shot staging did, for the screenshot tooling
 
 function uiRecord() {
   return {
@@ -72,8 +73,10 @@ function resize() {
 }
 
 function overlay(ctx) {
-  if (world.state.phase !== 'title') drawHud(ctx, world, uiRecord());
-  drawScreen(ctx, world, uiRecord());
+  const ui = uiRecord();
+  if (world.state.phase !== 'title') drawHud(ctx, world, ui);
+  drawHints(ctx, world, ui);
+  drawScreen(ctx, world, ui);
 }
 
 /** A screen-reader line, so the game says what it is doing without a visible status box. */
@@ -240,6 +243,7 @@ window.__gameTest = {
     snap.muted = settings.muted;
     snap.reducedMotion = settings.reducedMotion;
     snap.shot = shotScene;
+    snap.stage = stageReport;
     snap.events = lastEvents;
     return snap;
   },
@@ -346,6 +350,6 @@ window.addEventListener('keydown', unlockAudio);
 window.addEventListener('pointerdown', unlockAudio);
 
 if (shotScene) {
-  stageShot(shotScene, world, { seed });
+  stageReport = stageShot(shotScene, world, { seed });
 }
 window.requestAnimationFrame(frame);

@@ -84,6 +84,7 @@ export function createWorld(seed = 1) {
     wrecks: [],
     beams: [],
     stormTurns: 0,
+    winBonus: 0,
     ring: { x: RING.x, y: RING.y, radius: RING.radius },
   };
 
@@ -107,6 +108,7 @@ export function createWorld(seed = 1) {
       state.hull = HULL.max;
       state.combo = 1;
       state.comboTimer = 0;
+      state.winBonus = 0;
       state.delivered = 0;
       state.target = WAVES[0].target;
       state.cleared = 0;
@@ -125,7 +127,7 @@ export function createWorld(seed = 1) {
       state.beams = [];
       world.fx = [];
       world.tick = [];
-      world.setupWave(0, true);
+      world.setupWave(0);
       return state;
     },
 
@@ -136,6 +138,7 @@ export function createWorld(seed = 1) {
       state.hull = HULL.max;
       state.combo = 1;
       state.comboTimer = 0;
+      state.winBonus = 0;
       state.delivered = 0;
       state.cleared = 0;
       state.totalDelivered = 0;
@@ -159,7 +162,7 @@ export function createWorld(seed = 1) {
       state.beams = [];
       // The seeded stream has not moved since the last layout, so this redraws the very
       // harbour the title screen showed: crates where the player last saw them.
-      world.setupWave(0, true);
+      world.setupWave(0);
       world.announce(`WAVE 1 · ${WAVES[0].name}`, `RESCUE ${state.target} CARGO`, 3);
       return state;
     },
@@ -187,7 +190,7 @@ export function createWorld(seed = 1) {
     },
 
     /** Lay out one wave's hazards: beams on their pylons, wrecks drifting in, salvage afloat. */
-    setupWave(index, first = false) {
+    setupWave(index) {
       const wave = WAVES[index];
       state.wave = index + 1;
       state.target = wave.target;
@@ -201,8 +204,7 @@ export function createWorld(seed = 1) {
         angle: PYLONS[pylon].base,
         index: i,
       }));
-      const wrecks = first ? wave.wrecks : wave.wrecks;
-      for (let i = 0; i < wrecks; i += 1) state.wrecks.push(world.spawnWreck(state.t));
+      for (let i = 0; i < wave.wrecks; i += 1) state.wrecks.push(world.spawnWreck(state.t));
       for (let i = 0; i < wave.salvage; i += 1) state.salvage.push(world.spawnSalvage());
     },
 
@@ -360,8 +362,16 @@ export function createWorld(seed = 1) {
         sk.vy *= scale;
       }
 
+      // The helm follows the mouse when there is one; a keyboard-only player who never moves the
+      // pointer would otherwise sail sideways for ever, so with no aim the hull turns to its thrust.
+      const thrustLength = Math.hypot(thrust.x, thrust.y);
+      let wanted = null;
       if (intent.aim) {
-        const wanted = Math.atan2(intent.aim.y - sk.y, intent.aim.x - sk.x);
+        wanted = Math.atan2(intent.aim.y - sk.y, intent.aim.x - sk.x);
+      } else if (thrustLength > 0.12) {
+        wanted = Math.atan2(thrust.y, thrust.x);
+      }
+      if (wanted !== null) {
         const rate = SKIFF.turn / (1 + SKIFF.turnMassPenalty * (mass - 1));
         sk.angle = approachAngle(sk.angle, wanted, rate * dt);
       }
@@ -599,7 +609,7 @@ export function createWorld(seed = 1) {
       state.delivered = 0;
       state.waveTime = 0;
       state.skiff.invuln = Math.max(state.skiff.invuln, 0.8); // a breath between waves
-      world.setupWave(next, false);
+      world.setupWave(next);
       world.push('waveStart', state.ring.x, state.ring.y, state.wave, 1.6);
       world.announce(`WAVE ${state.wave} · ${WAVES[state.wave - 1].name}`, `RESCUE ${state.target} CARGO`, 2.8);
     },

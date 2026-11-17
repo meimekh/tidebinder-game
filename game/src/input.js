@@ -179,12 +179,14 @@ export function createInput(canvas) {
      */
     intent() {
       const source = override ?? {};
-      const move = source.thrust ?? this.moveVector();
+      // `'thrust' in source` matters: an override that says `thrust: {x:0, y:0}` or `aim: null`
+      // means exactly that, and must not fall back to the devices that are still being held.
+      const move = 'thrust' in source ? source.thrust ?? { x: 0, y: 0 } : this.moveVector();
       const length = Math.hypot(move.x, move.y);
       intent.thrust.x = length > 1 ? move.x / length : move.x;
       intent.thrust.y = length > 1 ? move.y / length : move.y;
-      intent.aim = source.aim ?? (pointer ? { x: pointer.x, y: pointer.y } : null);
-      intent.tether = source.tether ?? this.tetherHeld();
+      intent.aim = 'aim' in source ? source.aim : pointer ? { x: pointer.x, y: pointer.y } : null;
+      intent.tether = 'tether' in source ? Boolean(source.tether) : this.tetherHeld();
       return intent;
     },
 

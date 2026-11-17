@@ -1,6 +1,6 @@
 """Print a coarse text preview of an image so composition can be checked without a viewer.
 
-    python tools/preview.py screenshots/1-start.jpg [cols rows]
+    python tools/preview.py screenshots/1-play.jpg [cols rows]
 """
 
 from __future__ import annotations

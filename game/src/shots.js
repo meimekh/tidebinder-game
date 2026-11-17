@@ -144,12 +144,127 @@ function runToDefeat(world, seconds) {
   return world.state.phase;
 }
 
+/** The nearest of a list of floating things, or Infinity. */
+function nearestDistance(list, x, y) {
+  let best = Infinity;
+  for (const item of list) {
+    const d = distance(item.x, item.y, x, y);
+    if (d < best) best = d;
+  }
+  return best;
+}
+
+/** The HUD's own panels, in harbour coordinates: a tow hidden under one of them is a worse shot. */
+const HUD_BOXES = [
+  [16, 16, 502, 142], // wave and quota
+  [924, 16, 1264, 142], // score and chain
+  [16, 580, 486, 704], // hull, tow, dash
+];
+
+function underHud(x, y, pad = 26) {
+  for (const [x0, y0, x1, y1] of HUD_BOXES) {
+    if (x > x0 - pad && x < x1 + pad && y > y0 - pad && y < y1 + pad) return true;
+  }
+  return false;
+}
+
+/**
+ * How good a live frame is as the cover: the tether is working, the tow is heading home, a hazard
+ * is in the water beside it, the hull has taken a knock and the chain is running. This rates the
+ * simulation's own numbers; it never changes them.
+ */
+function ratePlayFrame(world) {
+  const state = world.state;
+  if (state.phase !== 'play') return -1e9;
+  if (state.t < 4) return -1e9; // the berth frame: nothing has happened yet
+  const sk = state.skiff;
+  const toRing = distance(sk.x, sk.y, state.ring.x, state.ring.y);
+  let score = state.hooks * 60;
+  if (state.hooks >= 2) score += 70;
+  // A tow with water left to cross: the ring is ahead, not already under the hull.
+  if (toRing >= 180 && toRing <= 330) score += 70;
+  else if (toRing > 330) score += Math.max(0, 80 - (toRing - 330) * 0.4);
+  else score -= 90;
+  if (state.delivered > 0) score += 30;
+  score += (state.combo - 1) * 16;
+  const wreck = nearestDistance(state.wrecks, sk.x, sk.y);
+  if (wreck < 80) score -= 70; // a wreck on top of the boat hides the boat
+  else if (wreck < 300) score += 80;
+  else if (wreck > 470) score -= 40;
+  const beam = nearestDistance(state.beams, sk.x, sk.y);
+  score += Math.min(90, Math.max(0, (360 - beam) * 0.3));
+  if (state.hull <= 92 && state.hull >= 55) score += 35;
+  if (state.hull < 45) score -= 60;
+  // Nothing the picture is about may hide under a status panel.
+  if (underHud(sk.x, sk.y)) score -= 200;
+  for (const item of state.hooked) {
+    if (underHud(item.x, item.y)) score -= 140;
+  }
+  return score;
+}
+
+/** A distinct storm frame: the last wave, the ring close, the deck full, the sky full of beams. */
+function rateStormFrame(world) {
+  const state = world.state;
+  if (state.phase !== 'play') return -1e9;
+  const sk = state.skiff;
+  const toRing = distance(sk.x, sk.y, state.ring.x, state.ring.y);
+  let score = 0;
+  if (state.wave < 3) score -= 400;
+  score += state.beams.length * 40;
+  score += state.hooks * 70;
+  score += toRing < 220 ? 90 : Math.max(0, 320 - toRing) * 0.2;
+  score += (state.combo - 1) * 12;
+  const wreck = nearestDistance(state.wrecks, sk.x, sk.y);
+  if (wreck > 70 && wreck < 260) score += 45;
+  if (state.hull < 80 && state.hull > 40) score += 25;
+  // A delivery that just landed: the ring's own burst, still inside the event window.
+  if (world.fx.some((event) => event.type === 'deliver' || event.type === 'waveClear')) score += 70;
+  if (underHud(sk.x, sk.y)) score -= 180;
+  for (const item of state.hooked) {
+    if (underHud(item.x, item.y)) score -= 110;
+  }
+  return score;
+}
+
+/**
+ * Run the pilot from a fresh run, rate every live frame, then replay the same deterministic run
+ * and stop on the best one. Two passes, same seed, same pilot: the frame is a real state the real
+ * rules produced, chosen for what it shows rather than posed.
+ */
+function stageBestFrame(world, seconds, rate) {
+  const seed = world.seed;
+  const total = Math.round(seconds / STEP);
+  let bestStep = 0;
+  let bestScore = -Infinity;
+  world.reset(seed);
+  world.start();
+  for (let i = 1; i <= total; i += 1) {
+    const result = world.step(STEP, pilotIntent(world));
+    const score = rate(world);
+    if (score > bestScore) {
+      bestScore = score;
+      bestStep = i;
+    }
+    if (result.ended) break;
+  }
+  world.reset(seed);
+  world.start();
+  for (let i = 0; i < bestStep; i += 1) world.step(STEP, pilotIntent(world));
+  return { steps: bestStep, rated: Math.round(bestScore) };
+}
+
 /** Names of the scenes this module can stage. */
-export const SHOTS = ['start', 'play', 'end'];
+export const SHOTS = ['start', 'play', 'end', 'storm'];
 
 /**
  * Set the world to the named scene and return a small report. Every scene runs the real
  * simulation from a fresh reset, so the same seed draws the same frame.
+ *
+ * start  the title screen over a harbour that has been turning for a while
+ * play   a live tow: crates on the rope, the ring ahead, a beam and a wreck in the water
+ * end    the terminal screen, piloted until the quota is home (defeat if the storm wins)
+ * storm  the last wave: the full gale's beams, the deck loaded, the ring at hand
  */
 export function stageShot(name, world, options = {}) {
   const seed = options.seed ?? world.seed;
@@ -166,19 +281,34 @@ export function stageShot(name, world, options = {}) {
 
   world.start();
   if (scene === 'play') {
-    // Play on until the second crate of wave one is home and a third is in tow: a frame that
-    // shows the whole loop at once — the tether, the chain, the hull that has been hit, the ring.
-    const report = runPilot(world, 150, (w) => {
-      const s = w.state;
-      const toRing = distance(s.skiff.x, s.skiff.y, s.ring.x, s.ring.y);
-      return s.wave === 1 && s.delivered >= 2 && s.hooks >= 1 && s.combo >= 3 && toRing < 240;
-    });
+    const frame = stageBestFrame(world, 60, ratePlayFrame);
     return {
       scene,
       phase: world.state.phase,
-      steps: report.steps,
+      steps: frame.steps,
+      rated: frame.rated,
+      wave: world.state.wave,
       delivered: world.state.delivered,
       hooks: world.state.hooks,
+      combo: world.state.combo,
+      hull: world.state.hull,
+      score: world.state.score,
+    };
+  }
+
+  if (scene === 'storm') {
+    const frame = stageBestFrame(world, 60, rateStormFrame);
+    return {
+      scene,
+      phase: world.state.phase,
+      steps: frame.steps,
+      rated: frame.rated,
+      wave: world.state.wave,
+      delivered: world.state.delivered,
+      hooks: world.state.hooks,
+      combo: world.state.combo,
+      hull: world.state.hull,
+      score: world.state.score,
     };
   }
 

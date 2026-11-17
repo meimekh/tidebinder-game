@@ -433,23 +433,25 @@ export function createRenderer(canvas) {
     ctx.restore();
 
     ctx.save();
-    ctx.lineWidth = 3;
+    ctx.lineWidth = 4;
     ctx.strokeStyle = rgba(PALETTE.ring, 0.38 + pulse * 0.45);
     ctx.beginPath();
     ctx.ellipse(ring.x, ring.y, ring.radius, ring.radius * 0.78, 0, 0, TAU);
     ctx.stroke();
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 2.5;
     ctx.setLineDash([16, 14]);
     ctx.lineDashOffset = reducedMotion ? 0 : -time * 34;
-    ctx.strokeStyle = rgba(PALETTE.ring, 0.7);
+    ctx.strokeStyle = rgba(PALETTE.ring, 0.85);
     ctx.beginPath();
     ctx.ellipse(ring.x, ring.y, ring.radius * 0.78, ring.radius * 0.61, 0, 0, TAU);
     ctx.stroke();
     ctx.setLineDash([]);
-    ctx.font = '600 15px ' + '"Segoe UI", system-ui, sans-serif';
+    ctx.font = '800 22px ' + '"Segoe UI Semibold", "Segoe UI", system-ui, sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillStyle = rgba(PALETTE.ring, 0.75);
-    ctx.fillText('DELIVER', ring.x, ring.y + 6);
+    ctx.fillStyle = 'rgba(3, 12, 22, 0.72)';
+    ctx.fillText('DELIVER', ring.x + 1.5, ring.y + 8.5);
+    ctx.fillStyle = rgba(PALETTE.ring, 0.95);
+    ctx.fillText('DELIVER', ring.x, ring.y + 7);
     ctx.restore();
   }
 
@@ -517,23 +519,34 @@ export function createRenderer(canvas) {
   function drawWrecks(world) {
     for (const wreck of world.state.wrecks) {
       const size = wreck.radius * 1.5;
-      waterShadow(ctx, wreck.x + size * 0.1, wreck.y + size * 0.3, size * 0.72, size * 0.3, 0.4);
+      waterShadow(ctx, wreck.x + size * 0.1, wreck.y + size * 0.3, size * 0.8, size * 0.34, 0.45);
       ctx.save();
       ctx.translate(wreck.x, wreck.y);
       ctx.rotate(Math.sin(wreck.angle) * 0.16);
-      isoCube(ctx, 0, 0, size, size * 0.34, {
-        top: PALETTE.coralDark,
-        left: '#4a1a17',
-        right: '#34110f',
+      // A dark contour under the wreck separates a coral hazard from the hot tether lines.
+      isoCube(ctx, 0, 3, size + 10, size * 0.34 + 4, {
+        top: '#0a0608',
+        left: '#050306',
+        right: '#030204',
       });
-      ctx.strokeStyle = rgba(PALETTE.coral, 0.5);
-      ctx.lineWidth = 1.5;
+      isoCube(ctx, 0, 0, size, size * 0.34, {
+        top: '#c94a3e',
+        left: '#7a2a24',
+        right: '#54201b',
+      });
+      ctx.strokeStyle = rgba(PALETTE.coral, 0.85);
+      ctx.lineWidth = 2.4;
       ctx.beginPath();
       ctx.moveTo(-size * 0.3, -size * 0.2);
       ctx.lineTo(size * 0.24, -size * 0.12);
       ctx.moveTo(-size * 0.22, -size * 0.05);
       ctx.lineTo(size * 0.3, 0.02 * size);
       ctx.stroke();
+      // The hazard lamp: a small red pulse on the wreck's deck.
+      ctx.beginPath();
+      ctx.arc(0, -size * 0.32, 3.2, 0, TAU);
+      ctx.fillStyle = PALETTE.coral;
+      ctx.fill();
       ctx.restore();
     }
   }
@@ -542,31 +555,59 @@ export function createRenderer(canvas) {
   function drawSalvage(world, time, reducedMotion) {
     for (const item of world.state.salvage) {
       const pulse = reducedMotion ? 0.6 : 0.55 + 0.3 * Math.sin(time * 2.4 + item.bob);
-      waterShadow(ctx, item.x + 3, item.y + 9, 17, 7, 0.5);
+      waterShadow(ctx, item.x + 4, item.y + 12, 24, 10, 0.55);
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
-      const glow = ctx.createRadialGradient(item.x, item.y, 1, item.x, item.y, 44);
-      glow.addColorStop(0, rgba(item.hooked ? PALETTE.amberLit : PALETTE.amber, 0.36 * pulse));
+      const glow = ctx.createRadialGradient(item.x, item.y, 1, item.x, item.y, 62);
+      glow.addColorStop(0, rgba(item.hooked ? PALETTE.amberLit : PALETTE.amber, 0.5 * pulse + 0.12));
       glow.addColorStop(1, rgba(PALETTE.amber, 0));
       ctx.fillStyle = glow;
       ctx.beginPath();
-      ctx.arc(item.x, item.y, 44, 0, TAU);
+      ctx.arc(item.x, item.y, 62, 0, TAU);
       ctx.fill();
       ctx.restore();
 
       const bob = Math.sin(time * 1.6 + item.bob) * 1.6;
-      isoCube(ctx, item.x, item.y + bob, 30, 15, {
+      // A near-black hull behind the crate so the amber shape keeps its edge over the sea.
+      isoCube(ctx, item.x, item.y + bob + 2, 48, 20, {
+        top: '#0a1220',
+        left: '#05080f',
+        right: '#03060c',
+      });
+      isoCube(ctx, item.x, item.y + bob, 42, 21, {
         top: item.hooked ? PALETTE.amberLit : PALETTE.amber,
         left: PALETTE.amberDark,
-        right: '#71490c',
+        right: '#7d4f08',
       });
       ctx.save();
-      ctx.strokeStyle = rgba(item.hooked ? PALETTE.ring : '#f6d99a', 0.8);
+      // The lid strap and the two corner boards: what makes the crate read as cargo, not a gem.
+      ctx.strokeStyle = rgba(item.hooked ? PALETTE.ring : PALETTE.amberLit, 0.95);
+      ctx.lineWidth = 2.2;
+      ctx.beginPath();
+      ctx.moveTo(item.x - 21, item.y + bob - 21);
+      ctx.lineTo(item.x + 21, item.y + bob - 21);
+      ctx.moveTo(item.x - 10, item.y + bob - 27);
+      ctx.lineTo(item.x - 10, item.y + bob - 15);
+      ctx.moveTo(item.x + 10, item.y + bob - 27);
+      ctx.lineTo(item.x + 10, item.y + bob - 15);
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(60, 32, 4, 0.8)';
       ctx.lineWidth = 1.4;
       ctx.beginPath();
-      ctx.moveTo(item.x - 15, item.y + bob - 15);
-      ctx.lineTo(item.x + 15, item.y + bob - 15);
+      ctx.moveTo(item.x - 21, item.y + bob - 21);
+      ctx.lineTo(item.x, item.y + bob - 11);
+      ctx.lineTo(item.x + 21, item.y + bob - 21);
       ctx.stroke();
+      if (item.hooked) {
+        // A hook light: the frame shows exactly which crates the rope is pulling.
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.fillStyle = PALETTE.teal;
+        ctx.beginPath();
+        ctx.arc(item.x, item.y + bob - 30, 4.2, 0, TAU);
+        ctx.fill();
+        ctx.restore();
+      }
       ctx.restore();
     }
   }
@@ -585,28 +626,40 @@ export function createRenderer(canvas) {
       const cy = sk.y + dy * 0.5 + ny * sag;
       ctx.save();
       ctx.lineCap = 'round';
-      ctx.strokeStyle = rgba('#04101c', 0.6);
-      ctx.lineWidth = 5;
+      ctx.strokeStyle = 'rgba(2, 10, 18, 0.85)';
+      ctx.lineWidth = 8;
       ctx.beginPath();
       ctx.moveTo(sk.x, sk.y);
       ctx.quadraticCurveTo(cx, cy, item.x, item.y);
       ctx.stroke();
-      ctx.strokeStyle = rgba(PALETTE.teal, 0.85);
-      ctx.lineWidth = 2.2;
+      ctx.strokeStyle = rgba(PALETTE.teal, 0.95);
+      ctx.lineWidth = 4;
       ctx.stroke();
-      ctx.strokeStyle = rgba('#d8fff9', 0.6);
-      ctx.lineWidth = 1;
+      ctx.strokeStyle = rgba('#e8fffb', 0.85);
+      ctx.lineWidth = 1.6;
       ctx.stroke();
 
-      for (let i = 1; i < 7; i += 1) {
-        const t = i / 7;
+      // Knots at both ends: the eye can trace where the tow starts and where it lands.
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.fillStyle = PALETTE.beamCore;
+      for (const [kx, ky, kr] of [
+        [sk.x, sk.y, 3.4],
+        [item.x, item.y - 8, 4.2],
+      ]) {
+        ctx.beginPath();
+        ctx.arc(kx, ky, kr, 0, TAU);
+        ctx.fill();
+      }
+
+      for (let i = 1; i < 8; i += 1) {
+        const t = i / 8;
         const px = (1 - t) * (1 - t) * sk.x + 2 * (1 - t) * t * cx + t * t * item.x;
         const py = (1 - t) * (1 - t) * sk.y + 2 * (1 - t) * t * cy + t * t * item.y;
         const travel = (time * 0.9 + i * 0.13) % 1;
-        ctx.globalAlpha = 0.25 + travel * 0.5;
+        ctx.globalAlpha = 0.3 + travel * 0.6;
         ctx.fillStyle = PALETTE.beamCore;
         ctx.beginPath();
-        ctx.arc(px, py, 1.7, 0, TAU);
+        ctx.arc(px, py, 2.4, 0, TAU);
         ctx.fill();
         ctx.globalAlpha = 1;
       }
@@ -620,23 +673,23 @@ export function createRenderer(canvas) {
     const bob = Math.sin(time * SKIFF.bobSpeed) * SKIFF.bobAmplitude;
     const speed = Math.hypot(sk.vx, sk.vy);
 
-    waterShadow(ctx, sk.x + 4, sk.y + 12, 30, 11, 0.55);
+    waterShadow(ctx, sk.x + 6, sk.y + 16, 40, 15, 0.6);
 
     // Wake: capsules laid back along the reverse of the heading.
     if (speed > 24) {
       const back = Math.atan2(-sk.vy, -sk.vx);
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
-      for (let i = 1; i <= 7; i += 1) {
-        const distance = i * (12 + speed * 0.045);
-        const alpha = 0.16 * (1 - i / 8) * (reducedMotion ? 0.6 : 1);
+      for (let i = 1; i <= 8; i += 1) {
+        const distance = i * (14 + speed * 0.05);
+        const alpha = 0.22 * (1 - i / 9) * (reducedMotion ? 0.6 : 1);
         ctx.fillStyle = rgba(PALETTE.beam, alpha);
         ctx.beginPath();
         ctx.ellipse(
           sk.x + Math.cos(back) * distance,
           sk.y + Math.sin(back) * distance + bob * 0.4,
-          7 + i * 2.4,
-          4 + i * 1.3,
+          8 + i * 2.8,
+          4.5 + i * 1.5,
           back,
           0,
           TAU,
@@ -649,7 +702,8 @@ export function createRenderer(canvas) {
     ctx.save();
     ctx.translate(sk.x, sk.y + bob);
     ctx.rotate(sk.angle + Math.PI / 2);
-    // Hull.
+    ctx.scale(1.34, 1.34);
+    // Hull: a dark contour first, so the rescue boat reads even at thumbnail size.
     ctx.beginPath();
     ctx.moveTo(0, -22);
     ctx.lineTo(13, 2);
@@ -657,10 +711,14 @@ export function createRenderer(canvas) {
     ctx.lineTo(-11, 16);
     ctx.lineTo(-13, 2);
     ctx.closePath();
-    ctx.fillStyle = '#1a4266';
+    ctx.strokeStyle = '#03080f';
+    ctx.lineWidth = 6;
+    ctx.lineJoin = 'round';
+    ctx.stroke();
+    ctx.fillStyle = '#1c4c74';
     ctx.fill();
-    ctx.strokeStyle = rgba(PALETTE.beam, 0.95);
-    ctx.lineWidth = 2.2;
+    ctx.strokeStyle = rgba(PALETTE.beam, 1);
+    ctx.lineWidth = 2.6;
     ctx.stroke();
     // Deck.
     ctx.beginPath();
@@ -669,9 +727,9 @@ export function createRenderer(canvas) {
     ctx.lineTo(0, 12);
     ctx.lineTo(-8, 0);
     ctx.closePath();
-    ctx.fillStyle = '#2f7fa4';
+    ctx.fillStyle = '#3b93ba';
     ctx.fill();
-    // Cabin.
+    // Cabin with a lit window: the one bright pixel that says "a boat".
     ctx.beginPath();
     ctx.moveTo(-6, -2);
     ctx.lineTo(6, -2);
@@ -680,7 +738,25 @@ export function createRenderer(canvas) {
     ctx.closePath();
     ctx.fillStyle = '#0b2033';
     ctx.fill();
-    ctx.strokeStyle = rgba(PALETTE.beam, 0.7);
+    ctx.strokeStyle = rgba(PALETTE.beam, 0.85);
+    ctx.lineWidth = 1.4;
+    ctx.stroke();
+    ctx.fillStyle = PALETTE.amberLit;
+    ctx.fillRect(-3.2, 0.4, 6.4, 3.2);
+    // Bow chevron: which way the skiff is heading.
+    ctx.beginPath();
+    ctx.moveTo(-4.6, -9.2);
+    ctx.lineTo(0, -13.4);
+    ctx.lineTo(4.6, -9.2);
+    ctx.strokeStyle = rgba(PALETTE.beamCore, 0.95);
+    ctx.lineWidth = 2.2;
+    ctx.stroke();
+    // The tow bollard the ropes run from.
+    ctx.beginPath();
+    ctx.arc(0, 9.5, 3.6, 0, TAU);
+    ctx.fillStyle = PALETTE.teal;
+    ctx.fill();
+    ctx.strokeStyle = '#03080f';
     ctx.lineWidth = 1.2;
     ctx.stroke();
     ctx.restore();
@@ -688,21 +764,21 @@ export function createRenderer(canvas) {
     // Mast lamp.
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
-    const lamp = ctx.createRadialGradient(sk.x, sk.y + bob - 6, 1, sk.x, sk.y + bob - 6, 52);
-    lamp.addColorStop(0, rgba(PALETTE.beam, 0.5));
+    const lamp = ctx.createRadialGradient(sk.x, sk.y + bob - 8, 1, sk.x, sk.y + bob - 8, 64);
+    lamp.addColorStop(0, rgba(PALETTE.beam, 0.62));
     lamp.addColorStop(1, rgba(PALETTE.beam, 0));
     ctx.fillStyle = lamp;
     ctx.beginPath();
-    ctx.arc(sk.x, sk.y + bob - 6, 52, 0, TAU);
+    ctx.arc(sk.x, sk.y + bob - 8, 64, 0, TAU);
     ctx.fill();
     ctx.restore();
 
     if (sk.invuln > 0) {
       ctx.save();
       ctx.strokeStyle = rgba(PALETTE.beamCore, 0.35 + 0.3 * Math.sin(time * 20));
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 2.5;
       ctx.beginPath();
-      ctx.arc(sk.x, sk.y + bob, 30, 0, TAU);
+      ctx.arc(sk.x, sk.y + bob, 38, 0, TAU);
       ctx.stroke();
       ctx.restore();
     }

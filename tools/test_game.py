@@ -10,6 +10,7 @@ needs a specific moment. Nothing is stubbed and nothing is asserted against a mo
 from __future__ import annotations
 
 import json
+import math
 import sys
 
 from playwright.sync_api import sync_playwright
@@ -90,6 +91,24 @@ def main() -> int:
         page.evaluate("window.__gameTest.step(1/60, 40)")
         aimed = page.evaluate("window.__gameTest.snapshot().skiff")
         check("mouse aim turns the helm", abs(aimed["angle"]) < 0.2, f"angle={aimed['angle']:.3f} rad (0 = due east)")
+
+        # a keyboard-only player has no pointer: the hull must still turn to its thrust
+        page.evaluate("window.__gameTest.reset(1); window.__gameTest.start()")
+        page.evaluate("window.__gameTest.setInput({thrust:{x:0,y:1}, aim:null, tether:false})")
+        page.evaluate("window.__gameTest.step(1/60, 40)")
+        south = page.evaluate("window.__gameTest.snapshot().skiff")
+        check("with no aim the hull turns to its thrust", abs(south["angle"] - math.pi / 2) < 0.2,
+              f"angle={south['angle']:.3f} rad, want {math.pi / 2:.3f} (due south)")
+
+        # an explicit aim:null means no aim, even though the mouse has been moved before
+        page.mouse.move(120, 700)
+        page.evaluate("window.__gameTest.reset(1); window.__gameTest.start()")
+        page.evaluate("window.__gameTest.setInput({thrust:{x:0,y:0}, aim:null, tether:false, dash:false})")
+        page.evaluate("window.__gameTest.step(1/60, 60)")
+        fixed = page.evaluate("window.__gameTest.snapshot().skiff")
+        check("an explicit aim:null is not replaced by the mouse",
+              abs(fixed["angle"] + 0.65) < 0.02,
+              f"angle={fixed['angle']:.3f} rad, the spawn heading is -0.650")
 
         # --- tether: hook, tow, release -------------------------------------------------
         page.evaluate("window.__gameTest.reset(1); window.__gameTest.start()")
@@ -350,15 +369,26 @@ def main() -> int:
             check(f"?shot={scene} renders the {expect if isinstance(expect, str) else '/'.join(expect)} state",
                   ok and framed["painted"], f"phase={state['phase']} canvas={framed['w']}x{framed['h']}")
 
+        # --- the fourth scene: the last wave, loaded and under way ---------------------
+        page.goto(f"{BASE}/?shot=storm&seed=1", wait_until="load")
+        page.wait_for_function("window.__shotReady === true", timeout=30000)
+        storm = page.evaluate("window.__gameTest.snapshot()")
+        check("?shot=storm stages the last wave in play",
+              storm["phase"] == "play" and storm["wave"] == 3 and storm["hooks"] >= 1,
+              f"phase={storm['phase']} wave={storm['wave']} hooks={storm['hooks']} "
+              f"{storm['delivered']}/{storm['target']} chain x{storm['combo']} hull={storm['hull']}")
+
         # --- deterministic: the same seed gives the same harbour twice ----------------
-        def scene_digest() -> str:
-            page.goto(f"{BASE}/?shot=play&seed=1", wait_until="load")
-            page.wait_for_function("window.__shotReady === true", timeout=15000)
+        def scene_digest(shot: str = "play") -> str:
+            page.goto(f"{BASE}/?shot={shot}&seed=1", wait_until="load")
+            page.wait_for_function("window.__shotReady === true", timeout=30000)
             return json.dumps(page.evaluate("window.__gameTest.snapshot()"), sort_keys=True)
 
-        first = scene_digest()
-        second = scene_digest()
+        first = scene_digest("play")
+        second = scene_digest("play")
         check("the same seed stages the same state twice", first == second)
+        check("the same seed stages the same storm twice",
+              scene_digest("storm") == scene_digest("storm"))
 
         check("no page errors", not page_errors, "; ".join(page_errors[:3]))
         check("no console errors or warnings", not console_errors, "; ".join(console_errors[:3]))

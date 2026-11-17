@@ -17,7 +17,7 @@ network request. See it at [make.fun](https://make.fun).
 | Key | Action |
 | --- | --- |
 | `W` `A` `S` `D` or the arrow keys | steer the skiff (thrust in screen space) |
-| Mouse | aim the helm — the skiff turns to face the cursor |
+| Mouse | aim the helm — the skiff turns to face the cursor; with no pointer aim the hull turns to its thrust instead |
 | `Space` or left mouse button (hold) | tether the nearest salvage in range and tow it |
 | Release | let the tether go and let the cargo drift |
 | `Shift` | dash — a short burst of speed with a few frames of protection |
@@ -27,7 +27,10 @@ network request. See it at [make.fun](https://make.fun).
 | `R` / `Enter` | restart a finished run; `Esc` returns to the title screen |
 
 The goal is on the screen at all times: how much cargo is rescued out of how many, what the hull has
-left, the score, the chain, the wave and whether the dash is ready.
+left, the score, the chain, the wave and whether the dash is ready — the quota and the hull in
+large type in the corners, the score and the chain opposite, one control line along the bottom. A
+short contextual line appears over the water when there is something true to say (a crate in
+reach, a tow to bring home, the chain running out, a hull about to fail) and stays off the cargo.
 
 ## Playing it
 
@@ -60,10 +63,11 @@ game/
     render.js         the harbour: isometric sea, quay, gears, beams, crates, skiff, particles
     hud.js            the status panels, the wave banner and the title/pause/win/loss screens
     audio.js          WebAudio oscillators for every event, created on the first gesture
-    shots.js          the scripted pilot and the ?shot=start|play|end scenes
+    shots.js          the scripted pilot and the ?shot=start|play|end|storm scenes
     main.js           the loop, the query string, the small save file, window.__gameTest
 tools/
-  shots.py            takes screenshots/ in a real browser and checks each render
+  shots.py            takes screenshots/ in a real browser, then checks each frame against the
+                      state its page reports (the tow is really painted)
   test_game.py        plays the game in a real browser and checks every mechanic
   preview.py          prints a coarse text preview of an image, for checking composition
 ```
@@ -94,12 +98,28 @@ x5 — which is the difference between a careful salvage and a dangerous, beauti
 
 ## Screenshot scenes
 
-`game/index.html?shot=start&seed=1`, `?shot=play&seed=1` and `?shot=end&seed=1` stage the three
-screenshots in `screenshots/` (title, live gameplay with the HUD, and a win with its restart
-prompt) by running the real simulation forward with the scripted pilot from `src/shots.js` — they
-are not separate art or a mock-up. `window.__gameTest` exposes `start`, `step(dt)`, `pilot(seconds)`,
-`setInput(...)` and `snapshot()` for automated tests, and `window.__shotReady` flips once the first
-frame has been painted; none of it is visible in the game itself.
+Four real renders, in the order the contact sheet reads them — the first is the cover:
+
+| File | Scene | What it shows |
+| --- | --- | --- |
+| `1-play.jpg` | `?shot=play&seed=1` | live gameplay: two amber crates on the tether, the ring ahead, a storm beam and a drifting wreck in the water |
+| `2-title.jpg` | `?shot=start&seed=1` | the title card: the goal, the four rules, every key |
+| `3-win.jpg` | `?shot=end&seed=1` | the results screen of a run the pilot really won |
+| `4-storm.jpg` | `?shot=storm&seed=1` | the last wave: four beams, three crates in tow, the ring at hand |
+
+Every scene is the real simulation run forward by the scripted pilot in `src/shots.js`, not a
+separate drawing or a mock-up. `play` and `storm` rate each live frame of the pilot's run (tether
+working, ring ahead, a hazard beside the boat, the hull dented, nothing hidden under a status
+panel), then replay the same deterministic run and stop on the best one, so the frame is a state
+the rules actually produced, chosen for what it shows. `?shot=end` pilots the quota home; if the
+storm wins first, the loss screen is the honest terminal state.
+
+`window.__gameTest` exposes `start`, `step(dt)`, `pilot(seconds)`, `setInput(...)` and
+`snapshot()` for automated tests, and `window.__shotReady` flips once the first frame has been
+painted; none of it is visible in the game itself. `tools/shots.py` records each frame's snapshot
+beside the image and then checks the pixels against it — the crates the snapshot says are in tow
+must be amber in the image, and each rope must be a bright line between the boat and its crate —
+so a blank, broken or mis-staged render fails the tool rather than shipping.
 
 ## Building the entry
 
