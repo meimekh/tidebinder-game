@@ -1,0 +1,8 @@
+# Build and packaging output: the entry itself is what is committed, not what is handed in.
+out/
+out-*/
+/output/
+node_modules/
+*.log
+tools/*-report.json
+tools/*-report.txt
